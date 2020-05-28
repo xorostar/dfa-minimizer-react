@@ -6,7 +6,11 @@ const Header = () => {
     <header>
       <Jumbotron
         className='text-white'
-        style={{ backgroundColor: '#4052B6', paddingBottom: '150px' }}
+        style={{
+          backgroundColor: '#4052B6',
+          paddingBottom: '150px',
+          borderRadius: '0px',
+        }}
       >
         <Container>
           <h1 className='display-3 text-center'>DFA Minimizer</h1>

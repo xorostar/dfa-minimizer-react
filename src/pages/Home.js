@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import Alert from '../includes/Alert';
 import ResultModal from './ResultModal';
 import MultiSelect from 'react-multi-select-component';
 import {
@@ -26,8 +27,15 @@ const Home = () => {
   });
 
   const [selectedFinalStates, setSelectedFinalStates] = useState([]);
+
+  useEffect(() => {
+    setAcceptingStates();
+    // eslint-disable-next-line
+  }, [selectedFinalStates]);
+
   const [stateOptions, setStateOptions] = useState([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [hasErrors, setHasErrors] = useState(false);
 
   const setAcceptingStates = () => {
     let acceptingStates = [];
@@ -40,6 +48,28 @@ const Home = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     setAcceptingStates();
+    const {
+      states,
+      alphabet,
+      initialState,
+      acceptingStates,
+      transitions,
+    } = automaton;
+    if (
+      states.length < 1 ||
+      alphabet.length < 1 ||
+      initialState === null ||
+      acceptingStates.length < 1 ||
+      transitions.length < 1
+    ) {
+      setHasErrors(true);
+      window.scrollTo(0, 0);
+      setTimeout(() => {
+        setHasErrors(false);
+      }, 6000);
+      return;
+    }
+    setHasErrors(false);
     setIsSubmitted(true);
     console.log(automaton);
   };
@@ -100,12 +130,18 @@ const Home = () => {
 
   return (
     <React.Fragment>
-      <Card>
+      <Card className='shadow-sm'>
         <CardHeader>Input Automaton</CardHeader>
         <CardBody>
           <CardTitle>
             Use the form below to input data for your automaton
           </CardTitle>
+          {hasErrors && (
+            <Alert
+              type='danger'
+              msg='All fields below are required. Please make sure that you have filled all the fields before submitting the form again.'
+            />
+          )}
           <Form onSubmit={handleSubmit}>
             <FormGroup>
               <Label for='states'>Enter states separated by commas:</Label>
@@ -219,7 +255,7 @@ const Home = () => {
             </Button>
           </Form>
         </CardBody>
-        <CardFooter className='d-flex align-items-center justify-content-between'>
+        <CardFooter className='d-flex flex-column flex-md-row flex-lg-row align-items-center justify-content-between'>
           <span>
             Developed by{' '}
             <a
