@@ -45,9 +45,7 @@ const Home = () => {
     setAutomaton({ ...automaton, acceptingStates });
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setAcceptingStates();
+  const validate = () => {
     const {
       states,
       alphabet,
@@ -58,7 +56,7 @@ const Home = () => {
     if (
       states.length < 1 ||
       alphabet.length < 1 ||
-      initialState === null ||
+      initialState == null ||
       acceptingStates.length < 1 ||
       transitions.length < 1
     ) {
@@ -67,11 +65,19 @@ const Home = () => {
       setTimeout(() => {
         setHasErrors(false);
       }, 6000);
-      return;
+      return false;
+    } else {
+      return true;
     }
-    setHasErrors(false);
-    setIsSubmitted(true);
-    console.log(automaton);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setAcceptingStates();
+    if (validate()) {
+      setHasErrors(false);
+      setIsSubmitted(true);
+    }
   };
 
   const handleChange = (e) => {
@@ -96,6 +102,7 @@ const Home = () => {
           value: state,
         });
       });
+      setSelectedFinalStates([]);
       setStateOptions(options);
     } else if (e.target.name === 'initial-state') {
       value = e.target.value;
@@ -103,7 +110,7 @@ const Home = () => {
     } else if (e.target.name === 'inputs') {
       value = e.target.value.replace(/(^\s*,)|(,\s*$)/g, '');
       let alphabet = value.split(',');
-      setAutomaton({ ...automaton, alphabet, transitions: [] });
+      setAutomaton({ ...automaton, alphabet });
     } else {
       let splitName = e.target.name.split('-');
       let fromState = splitName[0];
@@ -182,6 +189,7 @@ const Home = () => {
                   name='initial-state'
                   id='initial-state'
                   onChange={handleChange}
+                  value={automaton.initialState ? automaton.initialState : ''}
                 >
                   <option value=''>Select...</option>
                   {stateOptions.map((option) => (

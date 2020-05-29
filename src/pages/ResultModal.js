@@ -57,7 +57,7 @@ const ResultModal = ({ automaton, setIsSubmitted }) => {
       isOpen={modal}
       toggle={toggle}
       size='lg'
-      style={{ width: '80vw', maxWidth: '100%' }}
+      style={{ width: '80vw', maxWidth: '100%', margin: 'auto' }}
     >
       <ModalHeader toggle={toggle}>Minimized Result</ModalHeader>
       <ModalBody>
