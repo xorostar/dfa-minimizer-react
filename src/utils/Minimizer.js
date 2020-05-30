@@ -117,7 +117,7 @@ export const minimize = (originalAutomaton) => {
             }
           }
         } else {
-          // Else if the set just contains a single state then push it to the currentEquivalence without performing an operations on it whatsoever
+          // Else if the set just contains a single state then push it to the currentEquivalence without performing any operations on it whatsoever
           currentEquivalence.push(set);
         }
       }
