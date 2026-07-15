@@ -18,7 +18,7 @@ const Header = () => {
           <p className='lead text-center'>
             Minimize a DFA using Equivalence Theorem. You just need to input the
             state transition table for the original DFA that you want to
-            minimize and our algorithm with compute and visualize everything
+            minimize and our algorithm will compute and visualize everything
             else for you.
           </p>
         </Container>
