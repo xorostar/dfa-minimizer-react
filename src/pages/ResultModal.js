@@ -20,6 +20,9 @@ const ResultModal = ({ automaton, setIsSubmitted }) => {
   const [equivalences, setEquivalences] = useState(null);
 
   const drawGraph = (automaton) => {
+    if (!automaton || !automaton.states || automaton.states.length === 0) {
+      return '<p class="text-muted mb-0">No states to display.</p>';
+    }
     var dotString = window.noam.fsm.printDotFormat(automaton);
     var gvizXml = window.Viz(dotString, 'svg');
     return gvizXml;
@@ -106,7 +109,12 @@ const ResultModal = ({ automaton, setIsSubmitted }) => {
 
             <Col sm='6'>
               <h6>Minimized State Transition Table</h6>
-              {minimizedAutomaton && (
+              {minimizedAutomaton && minimizedAutomaton.states.length === 0 && (
+                <p className='text-muted'>
+                  No reachable states remain after minimization.
+                </p>
+              )}
+              {minimizedAutomaton && minimizedAutomaton.states.length > 0 && (
                 <Table responsive bordered>
                   <thead>
                     <tr>
@@ -143,6 +151,9 @@ const ResultModal = ({ automaton, setIsSubmitted }) => {
                 </Table>
               )}
               <h6>Computed Equivalences</h6>
+              {equivalences && equivalences.length === 0 && (
+                <p className='text-muted'>No equivalences to display.</p>
+              )}
               {equivalences &&
                 equivalences.map((equivalence, index) => (
                   <p key={`equivalence-${index}`}>
