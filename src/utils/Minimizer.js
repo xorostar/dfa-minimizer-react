@@ -1,5 +1,27 @@
 /* eslint-disable no-loop-func */
-import { isEqual } from './Helpers';
+
+const normalizeSet = (set) => [...set].sort().join('\0');
+
+export const partitionsEqual = (a, b) => {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+    return false;
+  }
+
+  const normalizedA = a.map(normalizeSet).sort();
+  const normalizedB = b.map(normalizeSet).sort();
+
+  return normalizedA.every((value, index) => value === normalizedB[index]);
+};
+
+// DOT-safe unique labels: p0_A_B, p1_F, ... (index prevents collisions like {1,2} vs {12})
+const assignPartitionLabels = (partitions) =>
+  partitions.map((set, index) => {
+    const members = [...set].sort().join('_');
+    return members ? `p${index}_${members}` : `p${index}`;
+  });
+
+const findPartitionIndex = (partitions, state) =>
+  partitions.findIndex((set) => set.includes(state));
 
 const removeUnreachableStates = (automaton) => {
   const reachable = new Set();
@@ -58,6 +80,11 @@ const areStatesEquivalent = (
       symbol
     );
 
+    // Both missing the same symbol → treat as equivalent (partial DFAs)
+    if (pivotTarget == null && subsequentTarget == null) {
+      return true;
+    }
+
     if (pivotTarget == null || subsequentTarget == null) {
       return false;
     }
@@ -72,16 +99,12 @@ const areStatesEquivalent = (
   });
 };
 
-const refineEquivalence = (
-  previousEquivalence,
-  alphabet,
-  transitions
-) => {
+const refineEquivalence = (previousEquivalence, alphabet, transitions) => {
   const currentEquivalence = [];
 
   previousEquivalence.forEach((set) => {
     if (set.length <= 1) {
-      currentEquivalence.push(set);
+      currentEquivalence.push([...set]);
       return;
     }
 
@@ -123,17 +146,33 @@ const refineEquivalence = (
   return currentEquivalence;
 };
 
+const buildEmptyAutomaton = (alphabet) => ({
+  states: [],
+  alphabet,
+  initialState: null,
+  acceptingStates: [],
+  transitions: [],
+});
+
 export const minimize = (originalAutomaton) => {
   const automaton = removeUnreachableStates(originalAutomaton);
   const equivalences = [];
 
+  if (automaton.states.length === 0) {
+    return {
+      minimizedAutomaton: buildEmptyAutomaton(originalAutomaton.alphabet || []),
+      equivalences: [],
+    };
+  }
+
   const nonFinalStates = automaton.states.filter(
     (state) => !automaton.acceptingStates.includes(state)
   );
-  let currentEquivalence = [nonFinalStates, automaton.acceptingStates].filter(
-    (set) => set.length > 0
-  );
-  equivalences.push(currentEquivalence);
+  let currentEquivalence = [
+    nonFinalStates,
+    [...automaton.acceptingStates],
+  ].filter((set) => set.length > 0);
+  equivalences.push(currentEquivalence.map((set) => [...set]));
 
   while (true) {
     const nextEquivalence = refineEquivalence(
@@ -141,69 +180,65 @@ export const minimize = (originalAutomaton) => {
       automaton.alphabet,
       automaton.transitions
     );
-    equivalences.push(nextEquivalence);
 
-    if (isEqual(currentEquivalence, nextEquivalence)) {
+    if (partitionsEqual(currentEquivalence, nextEquivalence)) {
       break;
     }
 
+    equivalences.push(nextEquivalence.map((set) => [...set]));
     currentEquivalence = nextEquivalence;
   }
 
-  const sortedEquivalences = equivalences.map((equivalence) =>
+  const displayEquivalences = equivalences.map((equivalence) =>
     [...equivalence].sort((a, b) => b.length - a.length)
   );
 
-  const finalEquivalence = sortedEquivalences[sortedEquivalences.length - 1];
+  const finalEquivalence = currentEquivalence;
+  const labels = assignPartitionLabels(finalEquivalence);
+  const labelByState = new Map();
+
+  finalEquivalence.forEach((set, index) => {
+    set.forEach((state) => labelByState.set(state, labels[index]));
+  });
 
   const minimizedAutomaton = {
-    states: [],
+    states: [...labels],
     alphabet: automaton.alphabet,
-    initialState: null,
-    acceptingStates: [],
+    initialState:
+      automaton.initialState != null
+        ? labelByState.get(automaton.initialState) || null
+        : null,
+    acceptingStates: finalEquivalence
+      .map((set, index) =>
+        set.some((state) => automaton.acceptingStates.includes(state))
+          ? labels[index]
+          : null
+      )
+      .filter(Boolean),
     transitions: [],
   };
 
-  const separatedStates = [];
-
-  finalEquivalence.forEach((set) => {
-    minimizedAutomaton.states.push(set.join(''));
-    separatedStates.push(set.join(','));
-  });
-
-  const initialSet = finalEquivalence.find((set) =>
-    set.includes(automaton.initialState)
-  );
-  minimizedAutomaton.initialState = initialSet ? initialSet.join('') : null;
-
-  minimizedAutomaton.acceptingStates = finalEquivalence
-    .filter((set) =>
-      set.some((state) => automaton.acceptingStates.includes(state))
-    )
-    .map((set) => set.join(''));
-
-  separatedStates.forEach((state) => {
-    const stateElements = state.replace(/(^\s*,)|(,\s*$)/g, '').split(',');
-    const stateElement = stateElements[0];
+  finalEquivalence.forEach((set, index) => {
+    const fromLabel = labels[index];
+    const representative = set[0];
     const transitions = automaton.transitions.filter(
-      (transition) => transition.fromState === stateElement
+      (transition) => transition.fromState === representative
     );
 
     transitions.forEach((transition) => {
       const oldToState = transition.toStates[0];
-      const toStates = separatedStates.filter((candidate) => {
-        const states = candidate.replace(/(^\s*,)|(,\s*$)/g, '').split(',');
-        return states.includes(oldToState);
-      });
+      const targetIndex = findPartitionIndex(finalEquivalence, oldToState);
+      if (targetIndex < 0) {
+        return;
+      }
 
-      toStates[0] = toStates[0].replace(/,/g, '');
       minimizedAutomaton.transitions.push({
-        fromState: state.replace(/,/g, ''),
-        toStates,
+        fromState: fromLabel,
+        toStates: [labels[targetIndex]],
         symbol: transition.symbol,
       });
     });
   });
 
-  return { minimizedAutomaton, equivalences: sortedEquivalences };
+  return { minimizedAutomaton, equivalences: displayEquivalences };
 };
