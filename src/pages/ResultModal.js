@@ -77,7 +77,7 @@ const ResultModal = ({ automaton, setIsSubmitted }) => {
                 <tbody>
                   {automaton.states.map((state) => {
                     return (
-                      <tr key={`transition-${state}}`}>
+                      <tr key={`transition-${state}`}>
                         <th scope='row'>{state}</th>
                         {automaton.alphabet.map((symbol) => (
                           <td key={`${state}-${symbol}`}>
@@ -88,6 +88,7 @@ const ResultModal = ({ automaton, setIsSubmitted }) => {
                               ) {
                                 return transition.toStates[0];
                               }
+                              return null;
                             })}
                           </td>
                         ))}
@@ -118,7 +119,7 @@ const ResultModal = ({ automaton, setIsSubmitted }) => {
                   <tbody>
                     {minimizedAutomaton.states.map((state) => {
                       return (
-                        <tr key={`transition-${state}}`}>
+                        <tr key={`transition-${state}`}>
                           <th scope='row'>{state}</th>
                           {minimizedAutomaton.alphabet.map((symbol) => (
                             <td key={`${state}-${symbol}`}>
@@ -130,6 +131,7 @@ const ResultModal = ({ automaton, setIsSubmitted }) => {
                                   ) {
                                     return transition.toStates[0];
                                   }
+                                  return null;
                                 }
                               )}
                             </td>
@@ -143,7 +145,7 @@ const ResultModal = ({ automaton, setIsSubmitted }) => {
               <h6>Computed Equivalences</h6>
               {equivalences &&
                 equivalences.map((equivalence, index) => (
-                  <p>
+                  <p key={`equivalence-${index}`}>
                     {`${index}-Equivalence: ${formatEquivalence(equivalence)}`}
                   </p>
                 ))}

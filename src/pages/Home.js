@@ -17,6 +17,12 @@ import {
   Table,
 } from 'reactstrap';
 
+const parseCommaSeparated = (value) =>
+  value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 const Home = () => {
   const [automaton, setAutomaton] = useState({
     states: [],
@@ -27,22 +33,29 @@ const Home = () => {
   });
 
   const [selectedFinalStates, setSelectedFinalStates] = useState([]);
-
-  useEffect(() => {
-    setAcceptingStates();
-    // eslint-disable-next-line
-  }, [selectedFinalStates]);
-
   const [stateOptions, setStateOptions] = useState([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [hasErrors, setHasErrors] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const setAcceptingStates = () => {
-    let acceptingStates = [];
-    selectedFinalStates.forEach((selectedState) => {
-      acceptingStates.push(selectedState.value);
-    });
-    setAutomaton({ ...automaton, acceptingStates });
+  useEffect(() => {
+    const acceptingStates = selectedFinalStates.map(
+      (selectedState) => selectedState.value
+    );
+    setAutomaton((prev) => ({ ...prev, acceptingStates }));
+  }, [selectedFinalStates]);
+
+  const hasCompleteTransitions = ({ states, alphabet, transitions }) => {
+    return states.every((state) =>
+      alphabet.every((symbol) =>
+        transitions.some(
+          (transition) =>
+            transition.fromState === state &&
+            transition.symbol === symbol &&
+            transition.toStates[0]
+        )
+      )
+    );
   };
 
   const validate = () => {
@@ -53,27 +66,41 @@ const Home = () => {
       acceptingStates,
       transitions,
     } = automaton;
+
     if (
       states.length < 1 ||
       alphabet.length < 1 ||
       initialState == null ||
-      acceptingStates.length < 1 ||
-      transitions.length < 1
+      acceptingStates.length < 1
     ) {
+      setErrorMessage(
+        'All fields below are required. Please fill in states, alphabet, initial state, and final states.'
+      );
       setHasErrors(true);
       window.scrollTo(0, 0);
       setTimeout(() => {
         setHasErrors(false);
       }, 6000);
       return false;
-    } else {
-      return true;
     }
+
+    if (!hasCompleteTransitions({ states, alphabet, transitions })) {
+      setErrorMessage(
+        'Every state needs a transition for each alphabet symbol. Incomplete transition tables are NFAs and cannot be minimized here.'
+      );
+      setHasErrors(true);
+      window.scrollTo(0, 0);
+      setTimeout(() => {
+        setHasErrors(false);
+      }, 8000);
+      return false;
+    }
+
+    return true;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setAcceptingStates();
     if (validate()) {
       setHasErrors(false);
       setIsSubmitted(true);
@@ -81,57 +108,67 @@ const Home = () => {
   };
 
   const handleChange = (e) => {
-    let value;
     if (e.target.name === 'states') {
-      value = e.target.value.replace(/(^\s*,)|(,\s*$)/g, '');
-      if (value === '') {
+      const states = parseCommaSeparated(e.target.value);
+      if (states.length === 0) {
         setStateOptions([]);
+        setSelectedFinalStates([]);
+        setAutomaton((prev) => ({
+          ...prev,
+          states: [],
+          initialState: null,
+          acceptingStates: [],
+          transitions: [],
+        }));
         return;
       }
-      let states = value.split(',');
-      setAutomaton({
-        ...automaton,
+
+      const options = states.map((state) => ({
+        label: state,
+        value: state,
+      }));
+      setSelectedFinalStates([]);
+      setStateOptions(options);
+      setAutomaton((prev) => ({
+        ...prev,
         states,
         initialState: null,
         acceptingStates: [],
-      });
-      let options = [];
-      states.forEach((state) => {
-        options.push({
-          label: state,
-          value: state,
-        });
-      });
-      setSelectedFinalStates([]);
-      setStateOptions(options);
+        transitions: [],
+      }));
     } else if (e.target.name === 'initial-state') {
-      value = e.target.value;
-      setAutomaton({ ...automaton, initialState: value });
+      setAutomaton((prev) => ({ ...prev, initialState: e.target.value }));
     } else if (e.target.name === 'inputs') {
-      value = e.target.value.replace(/(^\s*,)|(,\s*$)/g, '');
-      let alphabet = value.split(',');
-      setAutomaton({ ...automaton, alphabet });
+      const alphabet = parseCommaSeparated(e.target.value);
+      setAutomaton((prev) => ({
+        ...prev,
+        alphabet,
+        transitions: [],
+      }));
     } else {
-      let splitName = e.target.name.split('-');
-      let fromState = splitName[0];
-      let toStates = [e.target.value];
-      let symbol = splitName[splitName.length - 1];
-      let transitions = automaton.transitions;
-      let alreadyExists = false;
-      transitions.forEach((transition) => {
-        if (
-          transition.symbol === symbol &&
-          transition.fromState === fromState
-        ) {
-          transition.toStates = toStates;
-          alreadyExists = true;
-          return;
+      const splitName = e.target.name.split('-');
+      const fromState = splitName[0];
+      const toStates = [e.target.value];
+      const symbol = splitName.slice(1).join('-');
+
+      setAutomaton((prev) => {
+        const transitions = [...prev.transitions];
+        const existingIndex = transitions.findIndex(
+          (transition) =>
+            transition.symbol === symbol && transition.fromState === fromState
+        );
+
+        if (existingIndex >= 0) {
+          transitions[existingIndex] = {
+            ...transitions[existingIndex],
+            toStates,
+          };
+        } else {
+          transitions.push({ fromState, toStates, symbol });
         }
+
+        return { ...prev, transitions };
       });
-      if (alreadyExists === false) {
-        transitions.push({ fromState, toStates, symbol });
-      }
-      setAutomaton({ ...automaton, transitions });
     }
   };
 
@@ -143,12 +180,7 @@ const Home = () => {
           <CardTitle>
             Use the form below to input data for your automaton
           </CardTitle>
-          {hasErrors && (
-            <Alert
-              type='danger'
-              msg='All fields below are required. Please make sure that you have filled all the fields before submitting the form again.'
-            />
-          )}
+          {hasErrors && <Alert type='danger' msg={errorMessage} />}
           <Form onSubmit={handleSubmit}>
             <FormGroup>
               <Label for='states'>Enter states separated by commas:</Label>
@@ -177,7 +209,8 @@ const Home = () => {
                 placeholder='e.g. a,b or 0,1'
               />
               <FormText>
-                All Spaces and trailing commas will be ignored
+                All Spaces and trailing commas will be ignored. Order does not
+                matter.
               </FormText>
             </FormGroup>
             {stateOptions.length > 0 && (
@@ -216,6 +249,10 @@ const Home = () => {
             {automaton.states.length > 0 && automaton.alphabet.length > 0 && (
               <FormGroup>
                 <Label>Transitions</Label>
+                <FormText className='mb-2 d-block'>
+                  A DFA requires exactly one next state for every state and
+                  alphabet symbol.
+                </FormText>
                 <Table responsive bordered>
                   <thead>
                     <tr>
@@ -228,7 +265,7 @@ const Home = () => {
                   <tbody>
                     {automaton.states.map((state) => {
                       return (
-                        <tr key={`transition-${state}}`}>
+                        <tr key={`transition-${state}`}>
                           <th scope='row'>{state}</th>
                           {automaton.alphabet.map((alphabet) => (
                             <td key={`${state}-${alphabet}`}>
@@ -238,6 +275,13 @@ const Home = () => {
                                 type='select'
                                 onChange={handleChange}
                                 name={`${state}-${alphabet}`}
+                                value={
+                                  automaton.transitions.find(
+                                    (transition) =>
+                                      transition.fromState === state &&
+                                      transition.symbol === alphabet
+                                  )?.toStates[0] || ''
+                                }
                               >
                                 <option value=''>State</option>
                                 {stateOptions.map((option) => (
